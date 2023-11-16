@@ -1,12 +1,15 @@
+import api from '@/api'
 import { RootState } from '@/store'
 import { setDarkMode } from '@/store/reducers/theme'
 import { getLocalStorage, removeLocalStorage, setLocalStorage } from '@/utils/helpers'
 import { SearchOutlined } from '@ant-design/icons'
 import { UserButton } from '@clerk/clerk-react'
 import { Breadcrumb, ConfigProvider, Flex, Input, Layout, Space, Switch, Typography, theme } from 'antd'
-import { PropsWithChildren, ReactNode, useEffect } from 'react'
+import { PropsWithChildren, ReactNode, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { RouteObject, useMatches, useNavigate } from 'react-router-dom'
+import { useRequest } from 'ahooks'
+import { Button } from 'antd/es/radio'
 
 const { Header, Content, Sider } = Layout
 
@@ -27,12 +30,29 @@ const BaseLayout = ({
   const { defaultAlgorithm, darkAlgorithm } = theme
   const isDarkMode = useSelector((state: RootState) => state.themeReducer.darkMode)
   const dispatch = useDispatch()
-
+  const [loading, setLoading] = useState(false)
+  const user = useSelector((state: RootState) => state.userReducer.user)
   const matches: RouteObject[] = useMatches()
   const crumbs = matches
     .filter((match) => Boolean(match.handle?.crumb))
     .map((match) => match.handle?.crumb(match.handle.data))
-
+    const { data } = useRequest(
+      async () => {
+        const response = await api.getUserById(user?.id ?? getLocalStorage('id'))
+        return response
+      },
+      {
+        onBefore() {
+          setLoading(true)
+        },
+        onFinally() {
+          setLoading(false)
+        },
+        onError(e) {
+          console.error(e)
+        }
+      }
+    )
   const handleClick = (value: boolean) => {
     if (isDarkMode) {
       removeLocalStorage('dark-mode')
@@ -55,6 +75,11 @@ const BaseLayout = ({
     <ConfigProvider
       theme={{
         algorithm: isDarkMode ? darkAlgorithm : defaultAlgorithm,
+        token: {
+          colorPrimary: isDarkMode ? '#1f93ff' : '#0074e0',
+          colorBgBase: isDarkMode ? '#000' : '#fff',
+          colorTextBase: isDarkMode ? '#d7e6f4' : '#0b1a28'
+        },
         components: {
           Layout: {
             siderBg: '#141414',
@@ -74,9 +99,14 @@ const BaseLayout = ({
     >
       <Layout style={{ minHeight: '100vh' }} className={isDarkMode ? 'dark' : ''}>
         <Header style={{ padding: 0, background: isDarkMode ? '#141414' : '#fff' }} className='fixed w-full z-50'>
-          <Flex align='center' className='w-full px-5 shadow-md' gap={190}>
+          <Flex
+            align='center'
+            className='w-full px-5 shadow-md'
+            gap={190}
+            style={{ background: isDarkMode ? '#141414' : '#fff' }}
+          >
             <div className='cursor-pointer' onClick={() => navigate('/')}>
-              <Typography.Title level={1}>Logo</Typography.Title>
+              <img src='/logo.png' width={70} height={70} />
             </div>
             {showSearch && (
               <Input
@@ -91,14 +121,19 @@ const BaseLayout = ({
         </Header>
         <Layout>
           <Sider width={300} theme={isDarkMode ? 'dark' : 'light'} className='shadow-md fixed-sidebar'>
-            <Flex justify='space-between' vertical className='h-full w-full pb-5'>
+            <Flex justify='space-between' vertical className='h-full w-full pb-5 pt-5'>
               <Flex gap={10} vertical className='w-full px-5 grow mb-5'>
                 {sider}
               </Flex>
               <Flex justify='space-between' align='center' className='mr-5'>
                 <Space size={10} align='center' className='cursor-pointer px-5 flex-none'>
                   <UserButton />
-                  <Typography.Text>Profile</Typography.Text>
+                  
+                  <Button
+                  onClick={() => navigate(`/profile/${user?.id}`)}
+                  >Profile</Button >
+                  
+              
                 </Space>
                 <Switch onChange={(e) => handleClick(e)} className='ml-5' checked={!!isDarkMode} />
               </Flex>
@@ -115,7 +150,7 @@ const BaseLayout = ({
             <Content style={{ margin: '0 16px' }}>{children}</Content>
           </Layout>
           {rightSider && (
-            <Sider width={300} theme={isDarkMode ? 'dark' : 'light'} className='shadow-md'>
+            <Sider width={300} theme={isDarkMode ? 'dark' : 'light'} className='shadow-md  mt-5'>
               {rightSider}
             </Sider>
           )}
